@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.9-management
+    container_name: rabbitmq
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - app-network
+
+  mongodb:
+    image: mongo:4.4
+    container_name: mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=makea_root_1
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - app-network
+
+  config-server:
+    build: ./config-server
+    container_name: config-server
+    depends_on:
+      - rabbitmq
+      - mongodb
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - MONGO_DB_USER=root
+      - MONGO_DB_PASS=makea_root_1
+      - MONGO_DB_AUTH_SOURCE=admin
+      - RMQ_PRODUCT_QUEUE=rmqProductQueue
+      - PRODUCTS_MONGODB_URL=mongodb://root:makea_root_1@mongodb:27017/products
+      - RMQ_USER_QUEUE=rmqUserQueue
+      - USERS_MONGODB_URL=mongodb://root:makea_root_1@mongodb:27017/users
+    volumes:
+      - './config-server:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    ports:
+    - 4000:4000
+    networks:
+      - app-network
+
+  gateway:
+    build: ./gateway
+    container_name: gateway
+    ports:
+      - '3000:3000'
+    depends_on:
+      - config-server
+    volumes:
+      - './gateway:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    networks:
+      - app-network
+
+  products-service:
+    build: ./products-service
+    container_name: products-service
+    ports:
+      - '3001:3000'
+    depends_on:
+      - config-server
+    volumes:
+      - './products-service:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    networks:
+      - app-network
+
+  users-service:
+    build: ./users-service
+    container_name: users-service
+    ports:
+      - '3002:3000'
+    depends_on:
+      - config-server
+    volumes:
+      - './users-service:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    name: app-network
+
+volumes:
+  mongodb-data:
+    name: mongodb-data
+
